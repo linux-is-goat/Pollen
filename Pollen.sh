@@ -9,21 +9,25 @@ echo "+##############################################+"
 echo "| Welcome to Pollen!                           |"
 echo "| The User Policy Editor                       |"
 echo "| -------------------------------------------- |"
-echo "| Developers:                                  |"
-echo "| - OlyB                                       |"
-echo "| - Rafflesia                                  |"
-echo "| - r58Playz                                   |"
+echo "| Original Developers:                         |"
+echo "| - OlyB, Rafflesia, r58Playz                  |"
+echo "|                                              |"
+echo "| Edited by: daydu3                            |"
 echo "+##############################################+"
 echo "May Ultrablue rest in peace, o7."
 
-
 sleep 1
 
-mkdir -p /tmp/overlay/etc/opt/chrome/policies/managed
-echo '{
+# 1. Setup the local directory
+mkdir -p /etc/opt/chrome/policies/managed
+
+# 2. Generate the optimized policy JSON
+cat <<EOF > /tmp/policy.json
+{
   "URLBlocklist": [],
   "SystemFeaturesDisableList": [],
   "EditBookmarksEnabled": true,
+  "BookmarkBarEnabled": true,
   "ChromeOsMultiProfileUserBehavior": "unrestricted",
   "DeveloperToolsAvailability": 1,
   "DefaultPopupsSetting": 1,
@@ -31,42 +35,40 @@ echo '{
   "AllowDinosaurEasterEgg": true,
   "IncognitoModeAvailability": 0,
   "AllowScreenLock": true,
-  "ExtensionAllowedTypes": null,
-  "ExtensionInstallAllowlist": null,
-  "ExtensionInstallBlocklist": null,
-  "ExtensionInstallForcelist": null,
-  "ExtensionSettings": null,
-  "PasswordManagerEnabled": "true",
-  "TaskManagerEndProcessEnabled": "true",
-  "UptimeLimit": "null",
-  "SystemTerminalSshAllowed": "true",
-  "SystemTimezone": "",
-  "IsolatedAppsDeveloperModeAllowed": "true",
-  "ForceGoogleSafeSearch": "false",
-  "ForceYouTubeRestrict": "0",
-  "EasyUnlockAllowed": "true",
-  "DisableSafeBrowsingProceedAnyway": "false",
-  "DeviceAllowNewUsers": "true",
-  "DevicePowerAdaptiveChargingEnabled": "true",
-  "DeviceGuestModeEnabled": "true",
-  "DeviceUnaffiliatedCrostiniAllowed": "true",
-  "VirtualMachinesAllowed": "true",
-  "CrostiniAllowed": "true",
-  "DefaultCookiesSetting": "1",
-  "VmManagementCliAllowed": "true",
-  "WifiSyncAndroidAllowed": "true",
-  "DeveloperToolsDisabled": "false",
-  "DeveloperToolsAvailability": "1",
-  "DeviceBlockDevmode": "false",
-  "UserBorealisAllowed": "true",
-  "InstantTetheringAllowed": "true",
-  "NearbyShareAllowed": "true",
-  "PinnedLauncherApps": "null",
-  "PrintingEnabled": "true",
-  "SmartLockSigninAllowed": "true",
-  "PhoneHubAllowed": "true",
+  "ExtensionAllowedTypes": ["*"],
+  "ExtensionInstallAllowlist": ["*"],
+  "ExtensionInstallBlocklist": [],
+  "ExtensionSettings": {
+    "*": {
+      "installation_mode": "allowed"
+    }
+  },
+  "PasswordManagerEnabled": true,
+  "TaskManagerEndProcessEnabled": true,
+  "SystemTerminalSshAllowed": true,
+  "IsolatedAppsDeveloperModeAllowed": true,
+  "ForceGoogleSafeSearch": false,
+  "ForceYouTubeRestrict": 0,
+  "EasyUnlockAllowed": true,
+  "DisableSafeBrowsingProceedAnyway": false,
+  "DeviceAllowNewUsers": true,
+  "DevicePowerAdaptiveChargingEnabled": true,
+  "DeviceGuestModeEnabled": true,
+  "DeviceUnaffiliatedCrostiniAllowed": true,
+  "VirtualMachinesAllowed": true,
+  "CrostiniAllowed": true,
+  "DefaultCookiesSetting": 1,
+  "VmManagementCliAllowed": true,
+  "WifiSyncAndroidAllowed": true,
+  "DeveloperToolsDisabled": false,
+  "DeviceBlockDevmode": false,
+  "UserBorealisAllowed": true,
+  "InstantTetheringAllowed": true,
+  "NearbyShareAllowed": true,
+  "PrintingEnabled": true,
+  "SmartLockSigninAllowed": true,
+  "PhoneHubAllowed": true,
   "LacrosAvailability": "user_choice",
-  "WallpaperImage": null,
   "ArcPolicy": {
     "playStoreMode": "ENABLED",
     "installType": "FORCE_INSTALLED",
@@ -74,21 +76,24 @@ echo '{
     "dpsInteractionsDisabled": false
   },
   "DnsOverHttpsMode": "automatic",
-  "BrowserLabsEnabled": "true",
-  "ChromeOsReleaseChannelDelegated": "true",
-  "WallpaperImage": "null",
-  "SafeSitesFilterBehavior": "0",
-  "SafeBrowsingProtectionLevel": "0",
-  "DownloadRestrictions": "0",
+  "BrowserLabsEnabled": true,
+  "ChromeOsReleaseChannelDelegated": true,
+  "SafeSitesFilterBehavior": 0,
+  "SafeBrowsingProtectionLevel": 0,
+  "DownloadRestrictions": 0,
   "ProxyMode": "system",
   "ProxyServerMode": "system",
-  "NetworkThrottlingEnabled": "false",
-  "NetworkPredictionOptions": "0",
-  "AllowedDomainsForApps": "",
-  "DeviceUserAllowlist": ""
-}' > /tmp/overlay/etc/opt/chrome/policies/managed/policy.json
-cp -a -L /etc/* /tmp/overlay/etc 2> /dev/null
-mount --bind /tmp/overlay/etc /etc
+  "NetworkThrottlingEnabled": false,
+  "NetworkPredictionOptions": 0
+}
+EOF
+
+# 3. Apply the policy specifically to avoid the /etc crash loop
+touch /etc/opt/chrome/policies/managed/policy.json
+mount --bind /tmp/policy.json /etc/opt/chrome/policies/managed/policy.json
 
 echo ""
 echo "Pollen has been successfully applied!"
+echo "Restarting UI to finalize changes..."
+sleep 1
+restart ui
