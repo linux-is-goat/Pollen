@@ -20,21 +20,20 @@ echo ""
 
 sleep 1
 
-mount -o remount,rw / 2>/dev/null || echo "Warning: RootFS is locked. Ensure 'debugd' helper was run."
+# Unlock filesystem
+mount -o remount,rw / 2>/dev/null
 
-# create the policy paths
-PATHS=(
-    "/etc/opt/chrome/policies/managed"
-    "/etc/opt/chrome/policies/recommended"
-    "/etc/chromium/policies"
-    "/tmp/empty_dir"
-)
+# Create necessary directories
+mkdir -p /etc/opt/chrome/policies/managed
+mkdir -p /etc/opt/chrome/policies/recommended
+mkdir -p /etc/chromium/policies/managed
+mkdir -p /var/lib/google/policies
+mkdir -p /var/lib/enterprise
+mkdir -p /var/lib/whitelist
+mkdir -p /run/policy
+mkdir -p /tmp/empty_dir
 
-for path in "${PATHS[@]}"; do
-    mkdir -p "$path"
-done
-
-# json with policies we want to change
+# 1. Generate the Policy JSON
 cat <<EOF > /tmp/policy.json
 {
   "URLBlocklist": [],
@@ -52,7 +51,11 @@ cat <<EOF > /tmp/policy.json
   "ExtensionInstallAllowlist": ["*"],
   "ExtensionInstallBlocklist": [],
   "ExtensionInstallForcelist": [],
-  "ExtensionSettings": { "*": { "installation_mode": "allowed" } },
+  "ExtensionSettings": {
+    "*": {
+      "installation_mode": "allowed"
+    }
+  },
   "PasswordManagerEnabled": true,
   "TaskManagerEndProcessEnabled": true,
   "SystemTerminalSshAllowed": true,
@@ -98,35 +101,30 @@ cat <<EOF > /tmp/policy.json
 }
 EOF
 
-# bind the thingies
-TARGETS=(
-    "/etc/opt/chrome/policies/managed/policy.json"
-    "/etc/chromium/policies/managed/policy.json"
-)
+# 2. Block the Cloud/Enterprise Vaults
+# This forces the browser to ignore "Cloud" sources
+mount --bind /tmp/empty_dir /var/lib/google/policies
+mount --bind /tmp/empty_dir /var/lib/enterprise
+mount --bind /tmp/empty_dir /var/lib/whitelist
+mount --bind /tmp/empty_dir /run/policy
 
-for target in "${TARGETS[@]}"; do
-    touch "$target" 2>/dev/null
-    mount --bind /tmp/policy.json "$target"
-done
-
-
-# Hide the folders to prevent them seeing
+# 3. Apply the "Anti-Force" trick on legacy paths
 mount --bind /tmp/empty_dir /etc/opt/chrome/policies/recommended
 mount --bind /tmp/empty_dir /etc/chromium/policies 2>/dev/null
 
-echo "Pollen has been applied"
-# 1. Kill the Cloud Policy Cache (The folder where 'Cloud' policies live)
-# This forces Chrome to look at our 'Platform' files instead.
-sudo rm -rf /var/lib/google/policies/*
-sudo mkdir -p /var/lib/google/policies
-sudo mount --bind /tmp/empty_dir /var/lib/google/policies
+# 4. Inject Custom Policies
+# We touch the files to ensure the mount point exists
+touch /etc/opt/chrome/policies/managed/policy.json
+touch /etc/chromium/policies/managed/policy.json
 
-# 2. Block the specific 'Enrollment' policy check
-sudo rm -rf /var/lib/whitelist/*
-sudo mount --bind /tmp/empty_dir /var/lib/whitelist
+mount --bind /tmp/policy.json /etc/opt/chrome/policies/managed/policy.json
+mount --bind /tmp/policy.json /etc/chromium/policies/managed/policy.json
 
-# 3. Targeted Cloud policy paths for v129/v147
-sudo mkdir -p /run/policy
-sudo mount --bind /tmp/empty_dir /run/policy
+# 5. Clear User-level Policy Cache
+find /home/chronos/user/ -name "Policy" -type d -exec mount --bind /tmp/empty_dir {} \; 2>/dev/null
 
+echo ""
+echo "Pollen has been successfully applied by daydu3!"
+echo "Restarting UI to finalize changes..."
+sleep 1
 restart ui
