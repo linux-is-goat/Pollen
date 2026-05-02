@@ -1,8 +1,9 @@
 #!/bin/bash
 
+# Check for root
 if [ $(id -u) -ne 0 ]; then
-    echo "Please run this script as root. You can do so by using 'sudo su' or 'sudo -i'."
-    exit
+    echo "Please run this script as root. Use 'sudo -i'"
+    exit 1
 fi
 
 echo "+##############################################+"
@@ -10,23 +11,30 @@ echo "| Welcome to Pollen!                           |"
 echo "| The User Policy Editor                       |"
 echo "| -------------------------------------------- |" 
 echo "| Original Developers:                         |"
-echo "| - OlyBaddie, Rafflesia, r58Playz                  |"
+echo "| - OlyBaddie, Rafflesia, r58Playz             |"
 echo "|                                              |"
 echo "| Edited by: daydu3                            |"
 echo "+##############################################+"
 echo "May Ultrablue rest in peace, o7."
+echo ""
 
 sleep 1
 
-# Unlock the filesystem
-mount -o remount,rw /
+mount -o remount,rw / 2>/dev/null || echo "Warning: RootFS is locked. Ensure 'debugd' helper was run."
 
-# Create necessary directories
-mkdir -p /etc/opt/chrome/policies/managed
-mkdir -p /etc/opt/chrome/policies/recommended
-mkdir -p /tmp/empty_dir
+# create the policy paths
+PATHS=(
+    "/etc/opt/chrome/policies/managed"
+    "/etc/opt/chrome/policies/recommended"
+    "/etc/chromium/policies"
+    "/tmp/empty_dir"
+)
 
-# 1. Generate the Policy JSON (Fixed types for stability)
+for path in "${PATHS[@]}"; do
+    mkdir -p "$path"
+done
+
+# json with policies we want to change
 cat <<EOF > /tmp/policy.json
 {
   "URLBlocklist": [],
@@ -44,11 +52,7 @@ cat <<EOF > /tmp/policy.json
   "ExtensionInstallAllowlist": ["*"],
   "ExtensionInstallBlocklist": [],
   "ExtensionInstallForcelist": [],
-  "ExtensionSettings": {
-    "*": {
-      "installation_mode": "allowed"
-    }
-  },
+  "ExtensionSettings": { "*": { "installation_mode": "allowed" } },
   "PasswordManagerEnabled": true,
   "TaskManagerEndProcessEnabled": true,
   "SystemTerminalSshAllowed": true,
@@ -94,17 +98,21 @@ cat <<EOF > /tmp/policy.json
 }
 EOF
 
-# 2. Apply the "Anti-Force" trick
-# This hides the official policy folders so forced extensions disappear
+# bind the thingies
+TARGETS=(
+    "/etc/opt/chrome/policies/managed/policy.json"
+    "/etc/chromium/policies/managed/policy.json"
+)
+
+for target in "${TARGETS[@]}"; do
+    touch "$target" 2>/dev/null
+    mount --bind /tmp/policy.json "$target"
+done
+
+
+# Hide the folders to prevent them seeing
 mount --bind /tmp/empty_dir /etc/opt/chrome/policies/recommended
-mount --bind /tmp/empty_dir /etc/chromium/policies
+mount --bind /tmp/empty_dir /etc/chromium/policies 2>/dev/null
 
-# 3. Apply your custom policies
-touch /etc/opt/chrome/policies/managed/policy.json
-mount --bind /tmp/policy.json /etc/opt/chrome/policies/managed/policy.json
-
-echo ""
-echo "Pollen has been successfully applied!"
-echo "Restarting UI to finalize changes..."
-sleep 1
+echo "Pollen has been applied"
 restart ui
