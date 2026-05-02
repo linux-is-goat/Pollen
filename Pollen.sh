@@ -115,4 +115,18 @@ mount --bind /tmp/empty_dir /etc/opt/chrome/policies/recommended
 mount --bind /tmp/empty_dir /etc/chromium/policies 2>/dev/null
 
 echo "Pollen has been applied"
+# 1. Kill the Cloud Policy Cache (The folder where 'Cloud' policies live)
+# This forces Chrome to look at our 'Platform' files instead.
+sudo rm -rf /var/lib/google/policies/*
+sudo mkdir -p /var/lib/google/policies
+sudo mount --bind /tmp/empty_dir /var/lib/google/policies
+
+# 2. Block the specific 'Enrollment' policy check
+sudo rm -rf /var/lib/whitelist/*
+sudo mount --bind /tmp/empty_dir /var/lib/whitelist
+
+# 3. Targeted Cloud policy paths for v129/v147
+sudo mkdir -p /run/policy
+sudo mount --bind /tmp/empty_dir /run/policy
+
 restart ui
