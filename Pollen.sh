@@ -18,10 +18,15 @@ echo "May Ultrablue rest in peace, o7."
 
 sleep 1
 
-# 1. Setup the local directory
-mkdir -p /etc/opt/chrome/policies/managed
+# Unlock the filesystem
+mount -o remount,rw /
 
-# 2. Generate the optimized policy JSON
+# Create necessary directories
+mkdir -p /etc/opt/chrome/policies/managed
+mkdir -p /etc/opt/chrome/policies/recommended
+mkdir -p /tmp/empty_dir
+
+# 1. Generate the Policy JSON (Fixed types for stability)
 cat <<EOF > /tmp/policy.json
 {
   "URLBlocklist": [],
@@ -38,6 +43,7 @@ cat <<EOF > /tmp/policy.json
   "ExtensionAllowedTypes": ["*"],
   "ExtensionInstallAllowlist": ["*"],
   "ExtensionInstallBlocklist": [],
+  "ExtensionInstallForcelist": [],
   "ExtensionSettings": {
     "*": {
       "installation_mode": "allowed"
@@ -88,7 +94,12 @@ cat <<EOF > /tmp/policy.json
 }
 EOF
 
-# 3. Apply the policy specifically to avoid the /etc crash loop
+# 2. Apply the "Anti-Force" trick
+# This hides the official policy folders so forced extensions disappear
+mount --bind /tmp/empty_dir /etc/opt/chrome/policies/recommended
+mount --bind /tmp/empty_dir /etc/chromium/policies
+
+# 3. Apply your custom policies
 touch /etc/opt/chrome/policies/managed/policy.json
 mount --bind /tmp/policy.json /etc/opt/chrome/policies/managed/policy.json
 
