@@ -23,7 +23,7 @@ sleep 1
 # Unlock filesystem
 mount -o remount,rw / 2>/dev/null
 
-# Create necessary directories
+# Create necessary directories (added the managed subfolders specifically)
 mkdir -p /etc/opt/chrome/policies/managed
 mkdir -p /etc/opt/chrome/policies/recommended
 mkdir -p /etc/chromium/policies/managed
@@ -102,20 +102,19 @@ cat <<EOF > /tmp/policy.json
 EOF
 
 # 2. Block the Cloud/Enterprise Vaults
-# This forces the browser to ignore "Cloud" sources
 mount --bind /tmp/empty_dir /var/lib/google/policies
-mount --bind /tmp/empty_dir /var/lib/enterprise
-mount --bind /tmp/empty_dir /var/lib/whitelist
-mount --bind /tmp/empty_dir /run/policy
+mount --bind /tmp/empty_dir /var/lib/enterprise 2>/dev/null
+mount --bind /tmp/empty_dir /var/lib/whitelist 2>/dev/null
+mount --bind /tmp/empty_dir /run/policy 2>/dev/null
 
 # 3. Apply the "Anti-Force" trick on legacy paths
 mount --bind /tmp/empty_dir /etc/opt/chrome/policies/recommended
 mount --bind /tmp/empty_dir /etc/chromium/policies 2>/dev/null
 
 # 4. Inject Custom Policies
-# We touch the files to ensure the mount point exists
-touch /etc/opt/chrome/policies/managed/policy.json
-touch /etc/chromium/policies/managed/policy.json
+# Explicitly creating the files before mounting
+touch /etc/opt/chrome/policies/managed/policy.json 2>/dev/null
+touch /etc/chromium/policies/managed/policy.json 2>/dev/null
 
 mount --bind /tmp/policy.json /etc/opt/chrome/policies/managed/policy.json
 mount --bind /tmp/policy.json /etc/chromium/policies/managed/policy.json
@@ -125,6 +124,6 @@ find /home/chronos/user/ -name "Policy" -type d -exec mount --bind /tmp/empty_di
 
 echo ""
 echo "Pollen has been successfully applied by daydu3!"
-echo "Restarting UI to finalize changes..."
+echo "Restarting UI..."
 sleep 1
 restart ui
