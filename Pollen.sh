@@ -20,110 +20,43 @@ echo ""
 
 sleep 1
 
-# Unlock filesystem
+# 1. Unlock and Force Read/Write
 mount -o remount,rw / 2>/dev/null
-
-# Create necessary directories (added the managed subfolders specifically)
-mkdir -p /etc/opt/chrome/policies/managed
-mkdir -p /etc/opt/chrome/policies/recommended
-mkdir -p /etc/chromium/policies/managed
-mkdir -p /var/lib/google/policies
-mkdir -p /var/lib/enterprise
-mkdir -p /var/lib/whitelist
-mkdir -p /run/policy
 mkdir -p /tmp/empty_dir
 
-# 1. Generate the Policy JSON
+# 2. Generate your Mega JSON
 cat <<EOF > /tmp/policy.json
 {
   "URLBlocklist": [],
-  "SystemFeaturesDisableList": [],
-  "EditBookmarksEnabled": true,
-  "BookmarkBarEnabled": true,
-  "ChromeOsMultiProfileUserBehavior": "unrestricted",
   "DeveloperToolsAvailability": 1,
-  "DefaultPopupsSetting": 1,
-  "AllowDeletingBrowserHistory": true,
-  "AllowDinosaurEasterEgg": true,
   "IncognitoModeAvailability": 0,
-  "AllowScreenLock": true,
-  "ExtensionAllowedTypes": ["*"],
-  "ExtensionInstallAllowlist": ["*"],
-  "ExtensionInstallBlocklist": [],
-  "ExtensionInstallForcelist": [],
-  "ExtensionSettings": {
-    "*": {
-      "installation_mode": "allowed"
-    }
-  },
-  "PasswordManagerEnabled": true,
+  "ExtensionSettings": { "*": { "installation_mode": "allowed" } },
+  "ArcPolicy": { "playStoreMode": "ENABLED" },
   "TaskManagerEndProcessEnabled": true,
-  "SystemTerminalSshAllowed": true,
-  "IsolatedAppsDeveloperModeAllowed": true,
-  "ForceGoogleSafeSearch": false,
-  "ForceYouTubeRestrict": 0,
-  "EasyUnlockAllowed": true,
-  "DisableSafeBrowsingProceedAnyway": false,
-  "DeviceAllowNewUsers": true,
-  "DevicePowerAdaptiveChargingEnabled": true,
-  "DeviceGuestModeEnabled": true,
-  "DeviceUnaffiliatedCrostiniAllowed": true,
-  "VirtualMachinesAllowed": true,
-  "CrostiniAllowed": true,
-  "DefaultCookiesSetting": 1,
-  "VmManagementCliAllowed": true,
-  "WifiSyncAndroidAllowed": true,
-  "DeveloperToolsDisabled": false,
-  "DeviceBlockDevmode": false,
-  "UserBorealisAllowed": true,
-  "InstantTetheringAllowed": true,
-  "NearbyShareAllowed": true,
-  "PrintingEnabled": true,
-  "SmartLockSigninAllowed": true,
-  "PhoneHubAllowed": true,
-  "LacrosAvailability": "user_choice",
-  "ArcPolicy": {
-    "playStoreMode": "ENABLED",
-    "installType": "FORCE_INSTALLED",
-    "playEmmApiInstallDisabled": false,
-    "dpsInteractionsDisabled": false
-  },
-  "DnsOverHttpsMode": "automatic",
-  "BrowserLabsEnabled": true,
-  "ChromeOsReleaseChannelDelegated": true,
-  "SafeSitesFilterBehavior": 0,
-  "SafeBrowsingProtectionLevel": 0,
-  "DownloadRestrictions": 0,
-  "ProxyMode": "system",
-  "ProxyServerMode": "system",
-  "NetworkThrottlingEnabled": false,
-  "NetworkPredictionOptions": 0
+  "CrostiniAllowed": true
 }
 EOF
 
-# 2. Block the Cloud/Enterprise Vaults
+# 3. KILL THE CLOUD VAULT (The v147 "Cloud" source)
+# We wipe the cached cloud blobs and bind over the directory
+rm -rf /var/lib/google/policies/* 2>/dev/null
+mkdir -p /var/lib/google/policies
 mount --bind /tmp/empty_dir /var/lib/google/policies
-mount --bind /tmp/empty_dir /var/lib/enterprise 2>/dev/null
-mount --bind /tmp/empty_dir /var/lib/whitelist 2>/dev/null
-mount --bind /tmp/empty_dir /run/policy 2>/dev/null
 
-# 3. Apply the "Anti-Force" trick on legacy paths
-mount --bind /tmp/empty_dir /etc/opt/chrome/policies/recommended
-mount --bind /tmp/empty_dir /etc/chromium/policies 2>/dev/null
+# 4. KILL THE USER CACHE (The most important part for v147)
+# This searches your personal login folder for the hidden policy cache
+echo "Blinding user-level caches..."
+find /home/chronos/u-*/ -name "Policy" -type d | while read -r policy_dir; do
+    mount --bind /tmp/empty_dir "$policy_dir"
+done
 
-# 4. Inject Custom Policies
-# Explicitly creating the files before mounting
-touch /etc/opt/chrome/policies/managed/policy.json 2>/dev/null
-touch /etc/chromium/policies/managed/policy.json 2>/dev/null
-
+# 5. INJECT PLATFORM POLICY
+# Create paths and apply the local override
+mkdir -p /etc/opt/chrome/policies/managed
+touch /etc/opt/chrome/policies/managed/policy.json
 mount --bind /tmp/policy.json /etc/opt/chrome/policies/managed/policy.json
-mount --bind /tmp/policy.json /etc/chromium/policies/managed/policy.json
 
-# 5. Clear User-level Policy Cache
-find /home/chronos/user/ -name "Policy" -type d -exec mount --bind /tmp/empty_dir {} \; 2>/dev/null
-
-echo ""
-echo "Pollen has been successfully applied by daydu3!"
-echo "Restarting UI..."
+# 6. REFRESH SESSION
+echo "System blinded. Restarting UI..."
 sleep 1
 restart ui
